@@ -127,62 +127,7 @@ def localizar_item_por_texto(page, texto):
     return item
 
 
-def selecionar_item_por_texto(page, texto):
-    print(f"Selecionando: {texto}")
-
-    item = localizar_item_por_texto(
-        page,
-        texto,
-    )
-
-    botao = item.locator(
-        "button.sidra-toggle"
-    )
-
-    botao.wait_for(
-        state="visible",
-        timeout=10000,
-    )
-
-    selecionado = botao.get_attribute(
-        "aria-selected"
-    )
-
-    if selecionado != "true":
-        botao.click()
-
-    print(f"{texto} selecionado.")
-
-
-def desmarcar_item_por_texto(page, texto):
-    print(f"Desmarcando: {texto}")
-
-    item = localizar_item_por_texto(
-        page,
-        texto,
-    )
-
-    botao = item.locator(
-        "button.sidra-toggle"
-    )
-
-    botao.wait_for(
-        state="visible",
-        timeout=10000,
-    )
-
-    selecionado = botao.get_attribute(
-        "aria-selected"
-    )
-
-    if selecionado == "true":
-        botao.click()
-
-    print(f"{texto} desmarcado.")
-
-
 def itens_do_filtro(page, texto):
-    """Limita as alterações à lista que contém a opção de referência."""
     item = localizar_item_por_texto(page, texto)
     lista = item.locator(
         'xpath=ancestor::*[count(.//div[contains(concat(" ", normalize-space(@class), " "), " item-lista ")]) > 1][1]'
@@ -196,7 +141,6 @@ def selecionar_exclusivamente(itens, desejados):
     if faltantes:
         raise ValueError(f"Opções não encontradas: {sorted(faltantes)}")
 
-    # Seleciona as opções desejadas antes de remover as demais.
     for selecionar in (True, False):
         for i, nome in enumerate(nomes):
             desejado = nome in desejados
@@ -415,7 +359,7 @@ def baixar_csv(page):
             "O arquivo foi criado, mas está vazio."
         )
 
-    print("DOWNLOAD CONCLUÍDO COM SUCESSO!")
+    print("Download concluído.")
 
     print(
         "Arquivo:",
@@ -579,31 +523,19 @@ def executar(headless=False):
 
             baixar_csv(page)
             validar_csv(ano_esperado=ano)
-            print(
-                "\n================================="
-            )
 
             print(
-                "AUTOMAÇÃO CONCLUÍDA COM SUCESSO!"
+                "Automação concluída."
             )
 
-            print(
-                "================================="
-            )
 
         except Exception as erro:
 
-            print(
-                "\n================================="
-            )
 
             print(
-                "ERRO NA AUTOMAÇÃO"
+                "Erro na automação:"
             )
 
-            print(
-                "================================="
-            )
 
             print(erro)
 

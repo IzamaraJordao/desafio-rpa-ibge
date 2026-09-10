@@ -1,22 +1,16 @@
 import logoLev from "../../assets/logoLev.jpg";
 import { useState } from "react";
 import { executarRpa } from "../../services/rpaService";
-import { Toast } from "../feedback/Toast";
+import { toast } from "react-toastify";
 
 interface TopBarProps {
   onAtualizar: () => Promise<void>;
-}
-
-interface ToastState {
-  mensagem: string;
-  tipo: "sucesso" | "erro";
 }
 
 export function TopBar({ onAtualizar }: TopBarProps) {
   const [executandoRpa, setExecutandoRpa] = useState(false);
 
   const [mensagemRpa, setMensagemRpa] = useState("");
-  const [toast, setToast] = useState<ToastState | null>(null);
 
   async function atualizarDados() {
     try {
@@ -27,14 +21,10 @@ export function TopBar({ onAtualizar }: TopBarProps) {
 
       setMensagemRpa("Automação concluída! Atualizando dashboard...");
 
-      // Carrega novamente o CSV gerado
       await onAtualizar();
 
       setMensagemRpa("Dados carregados");
-      setToast({
-        tipo: "sucesso",
-        mensagem: "Dados atualizados com sucesso!",
-      });
+      toast.success("Dados atualizados com sucesso!");
     } catch (error) {
       console.error(error);
 
@@ -42,7 +32,7 @@ export function TopBar({ onAtualizar }: TopBarProps) {
         error instanceof Error ? error.message : "Erro ao atualizar dados.";
 
       setMensagemRpa("Dados carregados");
-      setToast({ tipo: "erro", mensagem: mensagemErro });
+      toast.error(mensagemErro);
     } finally {
       setExecutandoRpa(false);
     }
@@ -86,13 +76,6 @@ export function TopBar({ onAtualizar }: TopBarProps) {
 
       <img className="powered-by-logo" src={logoLev} alt="Lev" />
 
-      {toast && (
-        <Toast
-          mensagem={toast.mensagem}
-          tipo={toast.tipo}
-          onFechar={() => setToast(null)}
-        />
-      )}
     </div>
   );
 }

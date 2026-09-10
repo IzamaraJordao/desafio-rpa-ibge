@@ -43,7 +43,6 @@ export function usePopulacao(): UsePopulacaoResult {
     };
   }, []);
 
-  // Recarrega os dados sem derrubar o dashboard para a tela de loading em tela cheia
   const recarregar = useCallback(async () => {
     const resultado = await carregarPopulacao();
     setDados(resultado);
