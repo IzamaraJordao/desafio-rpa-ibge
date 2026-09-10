@@ -4,7 +4,7 @@ Automação em Python e Playwright para extrair a população de 60 anos ou mais
 
 ## Instalação e execução
 
-Requisitos: Windows, Python 3 e acesso à internet. Para a API e a dashboard, Node.js 22.12 ou superior e npm.
+Requisitos: Windows, Python 3. Para a API e a dashboard, Node.js 22.12 ou superior e npm.
 
 No PowerShell, na raiz do projeto:
 
@@ -42,12 +42,14 @@ O botão **Atualizar dados do IBGE** executa o robô e recarrega o CSV. Mantenha
 O robô parte da página inicial do SIDRA, encontra a tabela pela busca interna e seleciona as faixas **60 a 69 anos** e **70 anos ou mais**, o ano mais recente listado e as **27 UFs**. Baixa o CSV pela interface e valida ano, faixas, valores e territórios.
 
 A coleta utiliza cliques e esperas explícitas, sem consultar a API REST do SIDRA ou abrir diretamente a URL da tabela.
+Apos a coleta os dados sao tratados e enviados a dashboard para analise detalhada.
 
 ## Principais desafios
 
-- Aguardar resultados e filtros durante carregamentos assíncronos.
-- Conferir `aria-selected` para evitar seleções extras ou inversão de estados.
-- Capturar o download e separar os dados das UFs dos metadados e notas do CSV.
+- **Localizar os elementos pela interface:**: A automação identifica o botão de pesquisa, o campo de busca e o resultado por textos, atributos e papéis de acessibilidade, evitando depender de coordenadas na tela.
+- **Lidar com carregamentos assíncronos:**: os resultados e filtros nem sempre aparecem assim que a página abre. Foram usadas esperas explícitas para aguardar os elementos antes de interagir, com limites de tempo para sinalizar falhas de carregamento.
+- **Garantir os filtros corretos:** :clicar em uma opção já selecionada pode desmarcá-la. O robô consulta `aria-selected`, seleciona as opções desejadas e remove as demais da mesma lista, verificando o estado final
+- **Validar o conteúdo do CSV:** :o arquivo inclui título, cabeçalhos, fonte e notas além dos dados, foi uma dificuldade para separar cada um.
 
 ## Verificações
 
