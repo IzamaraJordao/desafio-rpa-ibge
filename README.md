@@ -2,6 +2,12 @@
 
 Automação em Python e Playwright para extrair a população de 60 anos ou mais por UF da tabela 1209. Inclui uma API Express para executar o robô e uma dashboard React para visualizar os dados.
 
+## Apresentação em vídeo
+
+[![Assistir à apresentação do projeto no YouTube](https://img.youtube.com/vi/vKQyV7TydxY/hqdefault.jpg)](https://youtu.be/vKQyV7TydxY)
+
+Clique na miniatura para assistir à explicação e demonstração do projeto.
+
 ## Instalação e execução
 
 Requisitos: Windows, Python 3. Para a API e a dashboard, Node.js 22.12 ou superior e npm.
