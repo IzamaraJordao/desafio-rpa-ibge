@@ -1,69 +1,78 @@
 # Desafio RPA — SIDRA/IBGE
 
-Automação em Python e Playwright para extrair a população de 60 anos ou mais por UF da tabela 1209. Inclui uma API Express para executar o robô e uma dashboard React para visualizar os dados.
-
-## Apresentação em vídeo
+Automação para extrair a população de 60 anos ou mais por Unidade da Federação da tabela 1209 do SIDRA/IBGE. Inclui uma API para executar o robô e uma dashboard para visualizar os dados.
 
 [![Assistir à apresentação do projeto no YouTube](https://img.youtube.com/vi/vKQyV7TydxY/hqdefault.jpg)](https://youtu.be/vKQyV7TydxY)
 
-Clique na miniatura para assistir à explicação e demonstração do projeto.
+Clique para assistir à apresentação.
 
-## Instalação e execução
+## Dependências necessárias
 
-Requisitos: Windows, Python 3. Para a API e a dashboard, Node.js 22.12 ou superior e npm.
+- **Ambiente:** Windows, Python 3 e acesso à internet. Para API e dashboard, Node.js 22.12 ou superior e npm.
+- **Automação:** Playwright e Chromium. A dependência Python está em `requirements.txt`.
+- **API:** Express, CORS, TypeScript e tsx.
+- **Dashboard:** React, TypeScript, Vite, Papa Parse, Recharts e React Toastify.
 
-No PowerShell, na raiz do projeto:
+As dependências da API e da dashboard estão nos respectivos arquivos `package.json` e são instaladas com `npm ci`.
 
-```powershell
-py -m venv .venv
+## Passo a passo de execução
+
+### 1. Preparar o ambiente Python
+
+No terminal, na raiz do projeto:
+
+```terminal
+python -m venv .venv
 .venv/Scripts/python.exe -m pip install -r requirements.txt
 .venv/Scripts/python.exe -m playwright install chromium
+```
+
+### 2. Executar a automação
+
+```terminal
 .venv/Scripts/python.exe desafio_ibge_1209.py
 ```
 
-Use `--headless` para executar sem janela. O resultado é salvo em `dados/populacao_60mais_1209.csv`; a pasta é criada automaticamente e o arquivo é substituído a cada execução.
+Acrescente `--headless` para executar sem janela. O CSV é salvo em `dados/populacao_60mais_1209.csv`. A pasta é criada automaticamente e uma nova coleta substitui o arquivo anterior.
 
-## API e dashboard opcionais
+### 3. Executar os testes automatizados (opcional)
 
-Após preparar o Python, execute em dois terminais na raiz do projeto:
+Após gerar o CSV pelo menos uma vez (passo 2), valide o arquivo com os testes de `tests/test_csv.py`:
 
-**API** — disponível em `http://localhost:3333`:
-
-```powershell
-npm.cmd --prefix api ci
-npm.cmd --prefix api start
+```terminal
+.venv/Scripts/python.exe -m unittest discover -s tests
 ```
 
-**Dashboard** — abra o endereço exibido pelo Vite:
+### 4. Iniciar a API e a dashboard (opcional)
 
-```powershell
-npm.cmd --prefix dashboard ci
-npm.cmd --prefix dashboard run dev
+Em um novo terminal, a partir da raiz do projeto, inicie a API:
+
+```terminal
+cd api
+npm ci
+npm start
 ```
 
-O botão **Atualizar dados do IBGE** executa o robô e recarrega o CSV. Mantenha a API ativa e execute uma coleta por vez. O build estático inclui uma cópia do CSV e precisa ser reconstruído após novas coletas.
+A API fica disponível em `http://localhost:3333`. Em outro terminal, também a partir da raiz, inicie a dashboard:
 
-## Estratégia
-
-O robô parte da página inicial do SIDRA, encontra a tabela pela busca interna e seleciona as faixas **60 a 69 anos** e **70 anos ou mais**, o ano mais recente listado e as **27 UFs**. Baixa o CSV pela interface e valida ano, faixas, valores e territórios.
-
-A coleta utiliza cliques e esperas explícitas, sem consultar a API REST do SIDRA ou abrir diretamente a URL da tabela.
-Apos a coleta os dados sao tratados e enviados a dashboard para analise detalhada.
-
-## Principais desafios
-
-- **Localizar os elementos pela interface:**: A automação identifica o botão de pesquisa, o campo de busca e o resultado por textos, atributos e papéis de acessibilidade, evitando depender de coordenadas na tela.
-- **Lidar com carregamentos assíncronos:**: os resultados e filtros nem sempre aparecem assim que a página abre. Foram usadas esperas explícitas para aguardar os elementos antes de interagir, com limites de tempo para sinalizar falhas de carregamento.
-- **Garantir os filtros corretos:** :clicar em uma opção já selecionada pode desmarcá-la. O robô consulta `aria-selected`, seleciona as opções desejadas e remove as demais da mesma lista, verificando o estado final
-- **Validar o conteúdo do CSV:** :o arquivo inclui título, cabeçalhos, fonte e notas além dos dados, foi uma dificuldade para separar cada um.
-
-## Verificações
-
-Na raiz do projeto:
-
-```powershell
-.venv/Scripts/python.exe -B -m unittest discover -s tests
-npm.cmd --prefix api run typecheck
-npm.cmd --prefix dashboard run lint
-npm.cmd --prefix dashboard run build
+```terminal
+cd dashboard
+npm ci
+npm run dev
 ```
+
+Abra o endereço exibido pelo Vite. O botão **Atualizar dados do IBGE** executa a automação e recarrega os dados. Mantenha os dois terminais abertos e execute uma coleta por vez.
+
+## Estratégia adotada
+
+A automação inicia em `https://sidra.ibge.gov.br/`, abre a busca interna e acessa a tabela 1209 pelo resultado. Seleciona exclusivamente as faixas **60 a 69 anos** e **70 anos ou mais**, o ano mais recente listado e as **27 UFs**, desmarcando o agregado Brasil.
+
+A coleta usa cliques e esperas explícitas do Playwright, sem consultar a API REST do SIDRA, abrir diretamente a URL da tabela ou alterar o DOM manualmente. O download é solicitado pela interface e o CSV é validado quanto ao ano, às faixas etárias, aos valores e aos territórios.
+
+A dashboard lê o CSV, soma as duas faixas por UF e apresenta os totais em cartões, gráfico e ranking com busca. A API local apenas inicia o processo Python e retorna o resultado da execução.
+
+## Principais desafios encontrados
+
+- **Localizar os elementos do SIDRA:**: a tabela precisava ser descoberta pela interface. Foram usados textos, atributos e papéis de acessibilidade para identificar a pesquisa e seus resultados, evitando coordenadas fixas na tela.consulta `aria-selected`, mantém as opções desejadas e remove as demais da mesma lista, conferindo o estado final
+- **Garantir filtros exclusivos:**: clicar em uma opção já selecionada pode desmarcá-la. A automação consulta `aria-selected`, mantém as opções desejadas e remove as demais da mesma lista, conferindo o estado final.
+- **Separar e validar os dados:**: o CSV inclui títulos, cabeçalhos, fonte e notas. A validação identifica o bloco das UFs e rejeita valores inválidos, duplicatas, territórios extras ou unidades ausentes. Os testes automatizados cobrem esses cenários.
