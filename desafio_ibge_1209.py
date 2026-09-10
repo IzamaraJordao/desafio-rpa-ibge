@@ -4,11 +4,13 @@ import csv
 
 from playwright.sync_api import (
     sync_playwright,
+    expect,
     TimeoutError as PlaywrightTimeoutError,
 )
 
 
 URL_INICIAL = "https://sidra.ibge.gov.br/"
+PASTA_DADOS = Path(__file__).resolve().parent / "dados"
 
 
 def abrir_sidra(page):
@@ -52,47 +54,13 @@ def abrir_campo_busca(page):
 
 
 def encontrar_campo_busca(page):
-    print("Procurando campo de busca...")
-
     abrir_campo_busca(page)
-
-    area_pesquisa = page.locator(
-        "#sidra-pesquisa-lg"
-    )
-
-    area_pesquisa.wait_for(
-        state="visible",
-        timeout=10000,
-    )
-
-    estrategias = [
-        area_pesquisa.locator("input[type='text']"),
-        area_pesquisa.locator("input[type='search']"),
-        area_pesquisa.get_by_role("textbox"),
-        area_pesquisa.locator("input"),
-    ]
-
-    for campo in estrategias:
-        try:
-            if campo.count() > 0:
-                primeiro = campo.first
-
-                primeiro.wait_for(
-                    state="visible",
-                    timeout=5000,
-                )
-
-                print("Campo de busca encontrado.")
-
-                return primeiro
-
-        except Exception:
-            continue
-
-    raise Exception(
-        "A área de pesquisa abriu, "
-        "mas o campo de pesquisa não foi localizado."
-    )
+    campo = page.locator(
+        "#sidra-pesquisa-lg input[type='text']:visible, "
+        "#sidra-pesquisa-lg input[type='search']:visible"
+    ).first
+    campo.wait_for(state="visible", timeout=15000)
+    return campo
 
 
 def pesquisar_tabela_1209(page):
@@ -119,56 +87,14 @@ def pesquisar_tabela_1209(page):
 
 
 def localizar_resultado_tabela(page):
-    print("Procurando resultado da tabela 1209...")
-
-    estrategias = [
-        page.get_by_role(
-            "link",
-            name=re.compile(
-                r"1209",
-                re.IGNORECASE,
-            ),
-        ),
-
-        page.locator("a").filter(
-            has_text=re.compile(
-                r"1209",
-                re.IGNORECASE,
-            )
-        ),
-
-        page.get_by_text(
-            "População, por grupos de idade",
-            exact=False,
-        ),
-
-        page.get_by_text(
-            "1209",
-            exact=False,
-        ),
-    ]
-
-    for resultado in estrategias:
-        try:
-            if resultado.count() > 0:
-                primeiro = resultado.first
-
-                primeiro.wait_for(
-                    state="visible",
-                    timeout=5000,
-                )
-
-                if primeiro.is_visible():
-                    print("Tabela 1209 encontrada.")
-
-                    return primeiro
-
-        except Exception:
-            continue
-
-    raise Exception(
-        "Tabela 1209 não encontrada nos resultados."
-    )
+    resultado = page.get_by_role("link", name=re.compile(r"\b1209\b"))
+    resultado = resultado.or_(page.get_by_role(
+        "link", name=re.compile("População, por grupos de idade", re.IGNORECASE)
+    )).or_(page.get_by_text("População, por grupos de idade", exact=False)).or_(
+        page.get_by_text("1209", exact=True)
+    ).filter(visible=True).first
+    resultado.wait_for(state="visible", timeout=30000)
+    return resultado
 
 
 def acessar_tabela_1209(page):
@@ -193,24 +119,11 @@ def acessar_tabela_1209(page):
 
 
 def localizar_item_por_texto(page, texto):
-    item = page.locator(
-        "div.item-lista"
-    ).filter(
-        has=page.get_by_text(
-            texto,
-            exact=True,
-        )
-    )
-
-    if item.count() == 0:
-        raise Exception(
-            f"Item '{texto}' não encontrado."
-        )
-
-    item = item.first
-
+    item = page.locator("div.item-lista").filter(
+        has=page.get_by_text(texto, exact=True)
+    ).first
+    item.wait_for(state="attached", timeout=15000)
     item.scroll_into_view_if_needed()
-
     return item
 
 
@@ -268,101 +181,63 @@ def desmarcar_item_por_texto(page, texto):
     print(f"{texto} desmarcado.")
 
 
+def itens_do_filtro(page, texto):
+    """Limita as alterações à lista que contém a opção de referência."""
+    item = localizar_item_por_texto(page, texto)
+    lista = item.locator(
+        'xpath=ancestor::*[count(.//div[contains(concat(" ", normalize-space(@class), " "), " item-lista ")]) > 1][1]'
+    )
+    return lista.locator("div.item-lista")
+
+
+def selecionar_exclusivamente(itens, desejados):
+    nomes = [nome.strip() for nome in itens.locator("span.nome").all_text_contents()]
+    faltantes = set(desejados) - set(nomes)
+    if faltantes:
+        raise ValueError(f"Opções não encontradas: {sorted(faltantes)}")
+
+    # Seleciona as opções desejadas antes de remover as demais.
+    for selecionar in (True, False):
+        for i, nome in enumerate(nomes):
+            desejado = nome in desejados
+            if desejado != selecionar:
+                continue
+            botao = itens.nth(i).locator("button.sidra-toggle")
+            estado = "true" if desejado else "false"
+            if botao.get_attribute("aria-selected") != estado:
+                botao.click()
+            expect(botao).to_have_attribute("aria-selected", estado, timeout=10000)
+
+    selecionados = itens.filter(
+        has=itens.page.locator('button[aria-selected="true"]')
+    ).locator("span.nome").all_text_contents()
+    if {nome.strip() for nome in selecionados} != set(desejados):
+        raise ValueError("A seleção final do filtro não corresponde ao solicitado.")
+
+
 def configurar_grupo_idade(page):
-    print("\nConfigurando grupo de idade...")
-
-    desmarcar_item_por_texto(
-        page,
-        "Total",
-    )
-
-    selecionar_item_por_texto(
-        page,
-        "60 a 69 anos",
-    )
-
-    selecionar_item_por_texto(
-        page,
-        "70 anos ou mais",
-    )
-
-    print(
-        "Grupo de idade configurado "
-        "para população com 60 anos ou mais."
+    print("Configurando exclusivamente as faixas de 60 anos ou mais...")
+    selecionar_exclusivamente(
+        itens_do_filtro(page, "60 a 69 anos"),
+        {"60 a 69 anos", "70 anos ou mais"},
     )
 
 
 def encontrar_ano_mais_recente(page):
-    print("Identificando o ano mais recente disponível...")
-
-    # Procura os nomes dos itens da lista
-    nomes = page.locator(
-        "div.item-lista div.sidra-check span.nome"
+    nomes = page.locator("div.item-lista span.nome").filter(
+        has_text=re.compile(r"^\d{4}$")
     )
-
-    anos = []
-
-    for i in range(nomes.count()):
-        nome = nomes.nth(i)
-
-        try:
-            texto = nome.inner_text().strip()
-
-            # Só considera texto que seja exatamente um ano
-            if re.fullmatch(r"\d{4}", texto):
-                anos.append(int(texto))
-
-        except Exception:
-            continue
-
-    if not anos:
-        raise Exception(
-            "Nenhum ano encontrado na lista de filtros."
-        )
-
-    ano_mais_recente = max(anos)
-
-    print("Anos encontrados:", sorted(set(anos)))
-    print(
-        "Ano mais recente encontrado:",
-        ano_mais_recente
-    )
-
-    return str(ano_mais_recente)
-
+    nomes.first.wait_for(state="attached", timeout=15000)
+    anos = [int(nome.strip()) for nome in nomes.all_text_contents()]
+    return str(max(anos))
 
 
 def configurar_ano(page):
-    print("\nConfigurando ano...")
+    ano = encontrar_ano_mais_recente(page)
+    selecionar_exclusivamente(itens_do_filtro(page, ano), {ano})
+    print(f"Ano selecionado: {ano}")
+    return ano
 
-    ano_mais_recente = encontrar_ano_mais_recente(
-        page
-    )
-
-    item_ano = localizar_item_por_texto(
-        page,
-        ano_mais_recente,
-    )
-
-    botao = item_ano.locator(
-        "button.sidra-toggle"
-    )
-
-    botao.wait_for(
-        state="visible",
-        timeout=10000,
-    )
-
-    selecionado = botao.get_attribute(
-        "aria-selected"
-    )
-
-    if selecionado != "true":
-        botao.click()
-
-    print(
-        f"Ano {ano_mais_recente} selecionado."
-    )
 
 def configurar_unidade_federacao(page):
     print("\nConfigurando Unidade da Federação...")
@@ -495,7 +370,7 @@ def baixar_csv(page):
 
     print("Nome do arquivo configurado.")
 
-    pasta_dados = Path("dados")
+    pasta_dados = PASTA_DADOS
     pasta_dados.mkdir(
         parents=True,
         exist_ok=True,
@@ -508,49 +383,10 @@ def baixar_csv(page):
 
     print("Procurando link final de Download...")
 
-    links_download = page.locator(
-        "a"
-    ).filter(
-        has_text=re.compile(
-            r"^\s*Download\s*$",
-            re.IGNORECASE,
-        )
-    )
-
-    confirmar_download = None
-
-    for i in range(links_download.count()):
-
-        link = links_download.nth(i)
-
-        try:
-            if link.is_visible():
-                confirmar_download = link
-
-                print(
-                    "Link de Download encontrado."
-                )
-
-                print(
-                    "href:",
-                    link.get_attribute("href"),
-                )
-
-                print(
-                    "class:",
-                    link.get_attribute("class"),
-                )
-
-                break
-
-        except Exception:
-            continue
-
-    if confirmar_download is None:
-        raise Exception(
-            "Não encontrei uma tag <a> visível "
-            "com o texto Download."
-        )
+    confirmar_download = page.locator("a:visible").filter(
+        has_text=re.compile(r"^\s*Download\s*$", re.IGNORECASE)
+    ).first
+    confirmar_download.wait_for(state="visible", timeout=30000)
 
     print("Solicitando arquivo ao SIDRA...")
 
@@ -579,9 +415,7 @@ def baixar_csv(page):
             "O arquivo foi criado, mas está vazio."
         )
 
-    print("\n=================================")
     print("DOWNLOAD CONCLUÍDO COM SUCESSO!")
-    print("=================================")
 
     print(
         "Arquivo:",
@@ -594,12 +428,10 @@ def baixar_csv(page):
         "bytes",
     )
 
-def validar_csv():
+def validar_csv(caminho=None, ano_esperado=None):
     print("\nValidando arquivo CSV...")
 
-    caminho = Path(
-        "dados/populacao_60mais_1209.csv"
-    )
+    caminho = Path(caminho) if caminho else PASTA_DADOS / "populacao_60mais_1209.csv"
 
     if not caminho.exists():
         raise Exception(
@@ -652,29 +484,29 @@ def validar_csv():
 
         linhas = list(leitor)
 
-    # Verifica as faixas etárias
-    conteudo = str(linhas)
+    cabecalho = ["Unidade da Federação", "60 a 69 anos", "70 anos ou mais"]
+    if cabecalho not in linhas:
+        raise ValueError("CSV deve conter exclusivamente as duas faixas de 60 anos ou mais.")
+    indice = linhas.index(cabecalho)
+    periodo = linhas[indice - 1] if indice else []
+    if len(periodo) != 2 or not re.fullmatch(r"\d{4}", periodo[1]):
+        raise ValueError("CSV deve conter exatamente um ano válido.")
+    if ano_esperado is not None and periodo[1] != str(ano_esperado):
+        raise ValueError(f"Ano do CSV difere do selecionado: {ano_esperado}.")
 
-    if "60 a 69 anos" not in conteudo:
-        raise Exception(
-            "Faixa '60 a 69 anos' não encontrada."
-        )
-
-    if "70 anos ou mais" not in conteudo:
-        raise Exception(
-            "Faixa '70 anos ou mais' não encontrada."
-        )
-
-    # Procura as UFs
-    for linha in linhas:
-
-        if not linha:
+    for linha in linhas[indice + 1:]:
+        if not linha or not any(linha):
             continue
-
         nome = linha[0].strip()
-
-        if nome in ufs_esperadas:
-            ufs_encontradas.add(nome)
+        if nome.startswith("Fonte:"):
+            break
+        if nome not in ufs_esperadas:
+            raise ValueError(f"Território inesperado no CSV: {nome}")
+        if nome in ufs_encontradas:
+            raise ValueError(f"UF duplicada no CSV: {nome}")
+        if len(linha) != 3 or not all(re.fullmatch(r"\d+|-", v) for v in linha[1:]):
+            raise ValueError(f"Valores de população inválidos para {nome}.")
+        ufs_encontradas.add(nome)
 
     if len(ufs_encontradas) != 27:
         faltantes = (
@@ -703,12 +535,12 @@ def validar_csv():
         "Faixa 70 anos ou mais: OK"
     )
 
-def executar():
+def executar(headless=False):
 
     with sync_playwright() as p:
 
         browser = p.chromium.launch(
-            headless=False,
+            headless=headless,
             slow_mo=250,
         )
 
@@ -737,7 +569,7 @@ def executar():
 
             configurar_grupo_idade(page)
 
-            configurar_ano(page)
+            ano = configurar_ano(page)
 
             configurar_unidade_federacao(page)
 
@@ -746,7 +578,7 @@ def executar():
             )
 
             baixar_csv(page)
-            validar_csv()
+            validar_csv(ano_esperado=ano)
             print(
                 "\n================================="
             )
@@ -757,11 +589,6 @@ def executar():
 
             print(
                 "================================="
-            )
-
-            input(
-                "\nPressione ENTER "
-                "para fechar o navegador..."
             )
 
         except Exception as erro:
@@ -780,15 +607,7 @@ def executar():
 
             print(erro)
 
-            print(
-                "\nO navegador ficará aberto "
-                "para facilitar a análise."
-            )
-
-            input(
-                "\nPressione ENTER "
-                "para fechar..."
-            )
+            raise
 
         finally:
 
@@ -796,4 +615,8 @@ def executar():
 
 
 if __name__ == "__main__":
-    executar()
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Extrai a população 60+ pela interface do SIDRA.")
+    parser.add_argument("--headless", action="store_true", help="Executa sem abrir uma janela.")
+    executar(headless=parser.parse_args().headless)
